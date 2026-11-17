@@ -1,0 +1,42 @@
+BUILDING THREE TIER ARCHITECTURE ON AWS USING EKC(Elastic Kubernetes Service).
+
+####____________COMPONENTS_______________####
+1. Networking (VPC)
+   - 1 VPC (10.0.0.0/16)
+   - 2 Public Subnets (across 2 AZs) for the Load Balancer and NAT Gateway.
+   - 2 Private Subnets (across 2 AZs) for the EKS Worker Nodes
+   - 2 Private Subnets for the RDS Database.
+   
+2. Compute (EKS)
+   - AWS manages the Control Plane.
+   - We provision EC2 Worker Nodes in the private subnets to run our Pods.
+   
+3. Database (RDS)
+   - PostgreSQL, deployed in the private database subnets (not accessible from the internet).
+   
+4. Container Registry (ECR)
+   - Where are Docker Images li
+
+5. CI/CD Pipeline (GitHub Actions)
+   - Automatically build, test and deploy to EKS when we push to main
+
+####____________VISUAL_DIAGRAM_______________####
+
+                                          [ INTERNET ]
+                                               │
+                                                                                ▼
+                                 [ Application Load Balancer ]  <-- (Created by K8s Ingress in Public Subnet)
+                                               │
+                                   ────────────┼─────────────────────────────────────────
+                           AWS VPC             │
+                                                                                ▼
+                                 [ EKS Cluster (Private Subnets) ]
+                                 ├── [ Flask Pod 1 ]
+                                 ├── [ Flask Pod 2 ]
+                                 └── [ Flask Pod 3 ]
+                                               │
+                                                                                ▼
+                                [ Amazon RDS (Private Subnet) ]
+                                └── PostgreSQL Database
+    
+    
