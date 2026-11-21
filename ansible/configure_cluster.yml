@@ -1,0 +1,68 @@
+---
+- name: Configure EKS Cluster
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    aws_region: "ap-south-1"
+    cluster_name: "capstone-eks"
+
+  tasks:
+    # ==========================================
+    # 1. Update Kubeconfig
+    # ==========================================
+    - name: Update kubeconfig to connect to EKS
+      ansible.builtin.command: >
+        aws eks update-kubeconfig --region {{ aws_region }} --name {{ cluster_name }}
+      changed_when: false
+
+    # ==========================================
+    # 2. Install Nginx Ingress Controller
+    # ==========================================
+    - name: Add Ingress Nginx Helm repository
+      kubernetes.core.helm_repository:
+        name: ingress-nginx
+        repo_url: https://kubernetes.github.io/ingress-nginx
+
+    - name: Deploy Ingress Nginx via Helm
+      kubernetes.core.helm:
+        name: ingress-nginx
+        chart_ref: ingress-nginx/ingress-nginx
+        release_namespace: ingress-nginx
+        create_namespace: true
+        values:
+          controller:
+            service:
+              type: LoadBalancer
+
+    # ==========================================
+    # 3. Install Metrics Server (For kubectl top)
+    # ==========================================
+    - name: Add Metrics Server Helm repository
+      kubernetes.core.helm_repository:
+        name: metrics-server
+        repo_url: https://kubernetes-sigs.github.io/metrics-server/
+
+    - name: Deploy Metrics Server via Helm
+      kubernetes.core.helm:
+        name: metrics-server
+        chart_ref: metrics-server/metrics-server
+        release_namespace: kube-system
+
+    # ==========================================
+    # 4. Wait for LoadBalancer IP
+    # ==========================================
+    - name: Wait for Ingress Nginx LoadBalancer to get an external IP
+      kubernetes.core.k8s_info:
+        kind: Service
+        namespace: ingress-nginx
+        name: ingress-nginx-controller
+      register: lb_info
+      until: lb_info.resources[0].status.loadBalancer.ingress is defined
+      retries: 30
+      delay: 10
+
+    - name: Print the LoadBalancer URL
+      ansible.builtin.debug:
+        msg: "The app will be accessible at: http://{{ lb_info.resources[0].status.loadBalancer.ingress[0].hostname }}"
