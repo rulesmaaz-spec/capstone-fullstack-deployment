@@ -1,0 +1,19 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+
+# Terraform lock file — commit this IF you have one module version;
+# for a lab, exclude it. Uncomment the line below to include it.
+# **/.terraform.lock.hcl
+
+# Secrets
+.env
+.env.*
+secrets/
+*.pem
