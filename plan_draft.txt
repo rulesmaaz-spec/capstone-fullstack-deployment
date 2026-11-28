@@ -1,0 +1,101 @@
+STEP 1 — INFRA APPLY
+────────────────────
+  Developer pushes to terraform/  (or clicks Run workflow)
+            |
+            ▼
+  GitHub environment: infrastructure --> REQUIRES APPROVAL
+            |
+            ▼
+  OIDC --> assume INFRA_ROLE_ARN (admin)
+            |
+            ▼
+  terraform init      --> pulls state from S3
+  terraform fmt/validate
+  terraform plan
+  terraform apply     --> creates:
+                          VPC + 4 subnets + NAT GW + IGW
+                          EKS cluster + node group + IAM roles
+                          RDS PostgreSQL
+                          ECR repository (scan-on-push enabled)
+            |
+            ▼
+  Publish outputs to SSM:
+    /capstone/ecr_url
+    /capstone/rds_endpoint
+    /capstone/cluster_name
+            |
+            ▼
+  Ansible configure-cluster.yml:
+    - update kubeconfig
+    - install Nginx Ingress Controller (provisions ALB)
+    - install Metrics Server
+            |
+            ▼
+------------------
+   INFRA READY
+-----------------
+
+STEP 2 — APP DEPLOY
+────────────────────
+  Developer pushes to app/ or k8s/  (or clicks Run workflow)
+            |
+            ▼
+  GitHub environment: production → REQUIRES APPROVAL
+            |
+            ▼
+  OIDC --. assume APP_ROLE_ARN (ECR + EKS describe + SSM read only)
+            |
+            ▼
+  Read SSM params --> ECR_URL, RDS_ENDPOINT, CLUSTER_NAME
+            |
+            ▼
+  Hadolint  --> lint Dockerfile, fail on errors
+            |
+            ▼
+  docker build --> tag with Git SHA
+            |
+            ▼
+  Trivy scan --> fail on CRITICAL/HIGH
+            |
+            ▼
+  docker push --> to ECR (scan-on-push runs again in AWS)
+            |
+            ▼
+  aws eks update-kubeconfig
+            |
+            ▼
+  helm upgrade --install capstone-release \
+    --set image.tag=$SHA \
+    --set database.host=$RDS_ENDPOINT
+            |
+            ▼
+------------------------
+   APP LIVE at ALB URL
+------------------------
+
+STEP 3 — INFRA DESTROY
+───────────────────────
+  Developer runs workflow manually, types "destroy"
+            │
+            ▼
+  GitHub environment: infrastructure → REQUIRES APPROVAL
+            │
+            ▼
+  OIDC → assume INFRA_ROLE_ARN (admin)
+            │
+            ▼
+  terraform init → pulls state from S3
+            │
+            ▼
+  terraform destroy → deletes ALL resources in state
+            │
+            ▼
+  Delete SSM parameters:
+    /capstone/ecr_url
+    /capstone/rds_endpoint
+    /capstone/cluster_name
+            │
+            ▼
+--------------------------
+   EVERYTHING DESTROY — $0 cost
+---------------------------
